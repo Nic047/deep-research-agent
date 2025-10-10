@@ -1,6 +1,6 @@
 // app/api/chat/route.ts
 import { openai } from "@ai-sdk/openai";
-import { streamText, convertToModelMessages } from "ai";
+import { streamText, convertToModelMessages, stepCountIs } from "ai";
 import { weather } from "@/tools/weather";
 import { searchTool } from "@/tools/searchTool";
 
@@ -31,6 +31,7 @@ summarizing information clearly for the user. When displaying code, make sure to
         weather,
         searchTool,
       },
+      stopWhen: stepCountIs(2), /// ! YESSIRRR WORKSSSS
     });
 
     return result.toUIMessageStreamResponse();
