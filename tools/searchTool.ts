@@ -12,10 +12,7 @@ export const searchTool = tool({
       .describe("Maximum number of search results to return"),
   }),
   execute: async ({ searchQuery, maxResults }) => {
-    // mimic realistic network delay
-    await new Promise((r) => setTimeout(r, 500 + Math.random() * 1000));
-
-    // generate fake but believable results
+    // generate fake but believable results instantly
     const results = Array.from({ length: maxResults }).map((_, i) => {
       const titleOptions = [
         `Deep Analysis: ${searchQuery}`,

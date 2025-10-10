@@ -24,14 +24,15 @@ You are a friendly assistant.
 When asked about the weather, call the "weather" tool automatically.
 When asked about other topics, call "searchTool" if needed.
 After receiving tool results, always respond naturally in plain text,
-summarizing information clearly for the user. When displaying code, make sure to use right syntax and always use Markdown.
+summarizing information clearly for the user. When displaying code, make sure to use right syntax and always use rich Markdown, for every response, if possible.
       `,
       messages: aiMessages,
       tools: {
         weather,
         searchTool,
       },
-      stopWhen: stepCountIs(2), /// ! YESSIRRR WORKSSSS
+      temperature: 0.4,
+      stopWhen: stepCountIs(10),
     });
 
     return result.toUIMessageStreamResponse();
