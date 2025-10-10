@@ -18,7 +18,7 @@ export async function POST(req: Request) {
     const aiMessages = convertToModelMessages(messages);
 
     const result = streamText({
-      model: openai("gpt-5-nano"),
+      model: openai("gpt-4o-mini"),
       system: `
 You are a friendly assistant.
 When asked about the weather, call the "weather" tool automatically.
