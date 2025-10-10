@@ -6,9 +6,9 @@ function Home() {
   return (
     <div className="h-screen w-full flex">
       {/* Sidebar */}
-      <div>
+      {/* <div>
         <MainSidebar />
-      </div>
+      </div> */}
       {/* Chat Section with Input */}
       <div className="flex-1 flex justify-center items-start p-6 overflow-auto">
         <div className="w-full max-w-4xl">
