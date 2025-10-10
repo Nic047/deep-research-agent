@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/accordion";
 
 function MainChat() {
-  const { messages, sendMessage, status, stop, error } = useChat({
+  const { messages, sendMessage, status, stop } = useChat({
     onError: (error) => {
       toast.error(`Error: ${error.message}`);
     },
