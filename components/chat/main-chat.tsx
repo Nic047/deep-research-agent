@@ -67,7 +67,7 @@ export default function MainChat() {
     useAutoScroll({
       offset: 20,
       smooth: true,
-      content: messages,
+      // content: messages,
     });
 
   return (
