@@ -31,8 +31,8 @@ summarizing information clearly for the user. When displaying code, make sure to
         weather,
         searchTool,
       },
-      temperature: 0.4,
-      stopWhen: stepCountIs(10),
+      temperature: 0.2,
+      stopWhen: stepCountIs(20),
     });
 
     return result.toUIMessageStreamResponse();

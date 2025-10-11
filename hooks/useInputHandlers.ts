@@ -16,6 +16,7 @@ export function useInputHandlers(
     scrollToBottom();
     sendMessage({ text: input });
     setInput("");
+    // Wait a tick so the new message is rendered
   };
 
   return { input, handleInputChange, handleSubmit };
