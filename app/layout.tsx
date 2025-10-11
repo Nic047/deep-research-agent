@@ -6,6 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/chat/app-sidebar";
 import { SidebarTrigger } from "@/components/ui/sidebar";
+import { Analytics } from "@vercel/analytics/next";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -40,7 +41,10 @@ export default function RootLayout({
                 <header className="border-b border-border p-4">
                   <SidebarTrigger />
                 </header>
-                <div className="flex-1 overflow-auto">{children}</div>
+                <div className="flex-1 overflow-auto">
+                  {children}
+                  <Analytics />
+                </div>
               </main>
             </div>
           </SidebarProvider>

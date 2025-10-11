@@ -29,6 +29,8 @@ export default function MainChat() {
     },
   });
 
+  const [clicked, setClicked] = useState(false);
+
   const lastMessageRef = useRef<HTMLDivElement | null>(null);
 
   const latestMessageText =
@@ -59,6 +61,7 @@ export default function MainChat() {
   const isGenerating =
     status === "submitted" || (status === "streaming" && !hasFirstToken);
   const showLoader = isGenerating && lastMessage?.role === "assistant";
+
   const handleCopyResponse = async () => {
     await copy();
   };
@@ -194,12 +197,31 @@ export default function MainChat() {
               <div className="flex h-16 items-center justify-end gap-2">
                 <Button
                   variant="ghost"
-                  className="p-0 m-0"
+                  className="relative w-8 h-8 p-0"
                   disabled={!latestMessageText.trim()}
                   onClick={handleCopyResponse}
                 >
-                  {copied ? <Check size={10} /> : <Copy size={10} />}
+                  {/* Copy Icon */}
+                  <Copy
+                    className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-400 ease-in-out ${
+                      copied
+                        ? "opacity-0 scale-90 pointer-events-none"
+                        : "opacity-100 scale-100"
+                    }`}
+                    size={18}
+                  />
+
+                  {/* Check Icon */}
+                  <Check
+                    className={`absolute top-1/2 left-1/2 -translate-x-1/2 ease-in-out -translate-y-1/2 transition-all duration-400 delay-200 ${
+                      copied
+                        ? "opacity-100 scale-100"
+                        : "opacity-0 scale-90 pointer-events-none"
+                    }`}
+                    size={18}
+                  />
                 </Button>
+
                 <Button variant="ghost" className="p-0 m-0">
                   <ThumbsUp size={10} />
                 </Button>
