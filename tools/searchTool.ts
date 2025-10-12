@@ -1,60 +1,58 @@
 import { tool } from "ai";
 import { z } from "zod";
+import { tavily } from "@tavily/core";
 
 export const searchTool = tool({
   description:
-    "Simulate a web search. Returns realistic, varied mock search results for testing and offline usage.",
+    "Perform a real web search and extract detailed content for comprehensive analysis.",
   inputSchema: z.object({
-    searchQuery: z.string().describe("The topic or query to search for"),
-    maxResults: z
+    searchQuery: z.string().describe("The topic or query to research deeply"),
+    resultCount: z
       .number()
-      .default(5)
-      .describe("Maximum number of search results to return"),
+      .default(20)
+      .describe("How many top search results to extract"),
   }),
-  execute: async ({ searchQuery, maxResults }) => {
-    // generate fake but believable results instantly
-    const results = Array.from({ length: maxResults }).map((_, i) => {
-      const titleOptions = [
-        `Deep Analysis: ${searchQuery}`,
-        `${searchQuery} – What Experts Say`,
-        `New Study About ${searchQuery}`,
-        `Everything You Need to Know About ${searchQuery}`,
-        `Breaking News: ${searchQuery} Update`,
-      ];
+  execute: async ({ searchQuery, resultCount }) => {
+    try {
+      const tvly = tavily({
+        apiKey: process.env.TAVILY_API_KEY!,
+      });
 
-      const snippetOptions = [
-        `Researchers found surprising insights regarding ${searchQuery}.`,
-        `Experts debate the long-term impact of ${searchQuery}.`,
-        `${searchQuery} continues to shape global trends in 2025.`,
-        `Learn how ${searchQuery} is transforming industries.`,
-        `A comprehensive overview of ${searchQuery} and related developments.`,
-      ];
+      // Step 1: Get search results (with URLs)
+      const searchResponse = await tvly.search(searchQuery, {
+        searchDepth: "advanced",
+        includeAnswer: false, // we’ll generate our own later
+        includeRawContent: "text",
+      });
 
-      const sources = [
-        "Reuters",
-        "BBC",
-        "TechCrunch",
-        "Wired",
-        "Nature",
-        "NYTimes",
-      ];
+      const urls = searchResponse.results
+        .slice(0, resultCount)
+        .map((r) => r.url)
+        .filter((u) => !!u);
+
+      if (urls.length === 0) {
+        throw new Error("No URLs found for extraction");
+      }
+
+      // Step 2: Extract full content from each page
+      const extractionResponse = await tvly.extract(urls);
 
       return {
-        title: titleOptions[i % titleOptions.length],
-        url: `https://example.com/${encodeURIComponent(searchQuery)}-${i}`,
-        snippet:
-          snippetOptions[Math.floor(Math.random() * snippetOptions.length)],
-        source: sources[Math.floor(Math.random() * sources.length)],
-        published_date: new Date(
-          Date.now() - Math.floor(Math.random() * 1000 * 60 * 60 * 24 * 30)
-        ).toISOString(), // random date within last 30 days
+        query: searchQuery,
+        resultCount: urls.length,
+        sources: extractionResponse.results.map((page) => ({
+          url: page.url,
+          title: searchQuery,
+          fullContent: page.rawContent.slice(0, 30000), // cut to avoid overloading
+        })),
       };
-    });
-
-    return {
-      count: results.length,
-      results,
-      note: `Mock search results generated for query "${searchQuery}"`,
-    };
+    } catch (error) {
+      console.error("Deep Tavily search error:", error);
+      throw new Error(
+        `Deep search failed: ${
+          error instanceof Error ? error.message : "Unknown error"
+        }`
+      );
+    }
   },
 });

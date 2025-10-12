@@ -8,24 +8,33 @@ export function useHasFirstToken(messages: UIMessage[], status: string) {
   useEffect(() => {
     const lastMessage = messages[messages.length - 1];
 
-    // Reset hasFirstToken when user sends a new message
-    if (messages.length > previousMessagesLength.current) {
-      setHasFirstToken(false);
+    // Only reset when user sends a new message
+    if (
+      messages.length > previousMessagesLength.current &&
+      lastMessage?.role === "user"
+    ) {
+      if (hasFirstToken) setHasFirstToken(false);
     }
 
-    if (lastMessage?.role === "assistant") {
-      const hasContent = lastMessage.parts.some(
+    // Set true only once per assistant message
+    if (
+      lastMessage?.role === "assistant" &&
+      !hasFirstToken &&
+      lastMessage.parts.some(
         (part) => part.type === "text" && part.text.trim().length > 0
-      );
-      if (hasContent) setHasFirstToken(true);
+      )
+    ) {
+      setHasFirstToken(true);
     }
 
     previousMessagesLength.current = messages.length;
-  }, [messages]);
+  }, [messages, hasFirstToken]);
 
   useEffect(() => {
-    if (status === "submitted") setHasFirstToken(false);
-  }, [status]);
+    if (status === "submitted" && hasFirstToken) {
+      setHasFirstToken(false);
+    }
+  }, [status, hasFirstToken]);
 
   return hasFirstToken;
 }

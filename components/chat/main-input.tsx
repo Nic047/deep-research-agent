@@ -45,7 +45,7 @@ export function MainInput({
         <div className="relative">
           <Textarea
             placeholder="Ask me anything…"
-            className="w-full h-24 resize-none bg-white dark:bg-gray-900 pr-20" // more padding-right
+            className="w-full h-24 resize-none bg-white dark:bg-black pr-20" // more padding-right
             disableFocusRing
             value={input}
             onChange={handleInputChange}
@@ -80,7 +80,7 @@ export function MainInput({
             {status === "ready" && (
               <Button
                 type="submit"
-                className="h-8 w-8 p-0 hover:scale-[1.02] active:scale-[0.98]"
+                className="h-8 w-8 p-0 dark:bg-black hover:scale-[1.02] active:scale-[0.98]"
                 disabled={isLoading}
               >
                 <ArrowUp className="h-4 w-4 text-white" />

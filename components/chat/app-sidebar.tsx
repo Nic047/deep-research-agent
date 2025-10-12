@@ -1,4 +1,5 @@
 import { Settings, Brain, History, User, Plus } from "lucide-react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 import {
   Sidebar,
@@ -9,7 +10,6 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarHeader,
   SidebarFooter,
 } from "@/components/ui/sidebar";
 
@@ -129,10 +129,13 @@ export function AppSidebar() {
         </SidebarGroup>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border">
-        <div className="flex items-center gap-2 px-4 py-2">
-          <User className="h-4 w-4" />
-          <span className="text-sm">Log in</span>
+      <SidebarFooter className="border-t border-sidebar-border p-2">
+        <div className="space-y-2">
+          <ThemeToggle />
+          <div className="flex items-center gap-2 px-2 py-1.5 text-sm rounded-md hover:bg-accent">
+            <User className="h-4 w-4" />
+            <span>Log in</span>
+          </div>
         </div>
       </SidebarFooter>
     </Sidebar>

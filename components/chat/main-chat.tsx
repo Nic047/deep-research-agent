@@ -1,13 +1,25 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useChat } from "@ai-sdk/react";
-
-import ScrollButton from "./scrollbutton";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+  // ChangeEvent,
+  // FormEvent,
+} from "react";
+import { UIMessage, useChat, UseChatHelpers } from "@ai-sdk/react";
 import { toast } from "sonner";
-import { useScrollToBottom } from "@/hooks/useScrollToBottom";
 import { Button } from "../ui/button";
-import { Check, Copy, ThumbsDown, ThumbsUp } from "lucide-react";
+import {
+  Check,
+  Copy,
+  ThumbsDown,
+  ThumbsUp,
+  Search,
+  FileText,
+  Loader2,
+} from "lucide-react";
 import { TextShimmer } from "../ui/text-shimmer";
 import { useHasFirstToken } from "@/hooks/useHasFirstToken";
 import { useInputHandlers } from "@/hooks/useInputHandlers";
@@ -21,23 +33,65 @@ import {
 import { useClipboard } from "@/hooks/useClipboard";
 import { Response } from "../ai-elements/response";
 import { useAutoScroll } from "@/hooks/use-auto-scroll";
+import { Badge } from "@/components/ui/badge";
+
+/* ---------- TYPES ---------- */
+
+interface TextPart {
+  type: "text";
+  text: string;
+}
+
+type ToolType = "tool-searchTool" | "tool-deepResearchTool" | "tool-weather";
+
+interface ToolCallPart {
+  type: ToolType;
+  tool?: string;
+  result: Record<string, unknown> & {
+    results?: Source[];
+    uniqueSources?: Source[];
+    queriesExecuted?: string[];
+    quickAnswers?: { query: string; answer: string }[];
+    totalSourcesFound?: number;
+    answer?: string;
+  };
+  args?: Record<string, unknown>;
+}
+
+interface Source {
+  title?: string;
+  url?: string;
+  publishedDate?: string;
+}
+
+type MessagePart = TextPart | ToolCallPart;
+
+interface Message {
+  id: string;
+  role: "user" | "assistant";
+  parts: MessagePart[];
+}
+
+/* ---------- COMPONENT ---------- */
 
 export default function MainChat() {
-  const { messages, sendMessage, status, stop } = useChat({
-    onError: (error) => {
-      toast.error(`Error: ${error.message}`);
-    },
-  });
-
-  const [clicked, setClicked] = useState(false);
+  const { messages, sendMessage, status, stop }: UseChatHelpers<UIMessage> =
+    useChat({
+      onError: (error) => toast.error(`Error: ${error.message}`),
+    });
 
   const lastMessageRef = useRef<HTMLDivElement | null>(null);
-
-  const latestMessageText =
-    messages[messages.length - 1]?.parts.find((part) => part.type === "text")
-      ?.text || "";
-
   const [startAnimation, setStartAnimation] = useState(false);
+
+  // Memoize latest assistant text to avoid unnecessary re-renders
+  const latestMessageText = useMemo(() => {
+    const lastMessage = messages[messages.length - 1];
+    return (
+      lastMessage?.parts.find((part): part is TextPart => part.type === "text")
+        ?.text ?? ""
+    );
+  }, [messages]);
+
   const { copy, copied } = useClipboard(latestMessageText);
 
   useEffect(() => {
@@ -45,6 +99,7 @@ export default function MainChat() {
   }, []);
 
   const hasFirstToken = useHasFirstToken(messages, status);
+
   const { input, handleInputChange, handleSubmit } = useInputHandlers(
     sendMessage,
     () => {
@@ -62,19 +117,29 @@ export default function MainChat() {
     status === "submitted" || (status === "streaming" && !hasFirstToken);
   const showLoader = isGenerating && lastMessage?.role === "assistant";
 
-  const handleCopyResponse = async () => {
-    await copy();
+  const handleCopyResponse = async () => copy();
+
+  const { scrollRef } = useAutoScroll({ offset: 20, smooth: true });
+
+  const getToolCalls = (message: Message): ToolCallPart[] =>
+    message.parts.filter(
+      (part): part is ToolCallPart =>
+        part.type.startsWith("tool-") && part.type !== "text"
+    );
+
+  const getSources = (message: Message): Source[] => {
+    const toolCalls = getToolCalls(message);
+    const sources: Source[] = [];
+    toolCalls.forEach((tool) => {
+      if (tool.result?.results) sources.push(...tool.result.results);
+      if (tool.result?.uniqueSources)
+        sources.push(...tool.result.uniqueSources);
+    });
+    return sources;
   };
 
-  const { scrollRef, isAtBottom, autoScrollEnabled, scrollToBottom } =
-    useAutoScroll({
-      offset: 20,
-      smooth: true,
-      // content: messages,
-    });
-
   return (
-    <div className="flex flex-col h-full w-full bg-white dark:bg-gray-950 hide-scrollbar relative">
+    <div className="flex flex-col h-full w-full bg-white dark:bg-black hide-scrollbar relative">
       {/* Header */}
       {messages.length === 0 && (
         <div className="px-8 py-6">
@@ -85,114 +150,230 @@ export default function MainChat() {
         </div>
       )}
 
-      {/* Chat Container - Centered and Narrower */}
       <div className="flex-1 flex justify-center">
         <div className="w-full max-w-4xl px-8 py-6">
-          {/* Messages Container */}
           <div
             ref={scrollRef}
             className="space-y-8 hide-scrollbar overflow-auto h-full"
           >
-            {/* Empty state */}
-            {messages.length === 0 ? (
-              <div className="flex flex-col items-center w-full justify-center h-full">
-                <div className="flex flex-row gap-6">
-                  {[0, 1, 2].map((n) => (
-                    <div
-                      key={n}
-                      className={`bg-white border w-[198px] cursor-pointer active:scale-95 h-28 rounded-2xl flex items-center justify-center transition-all duration-300 ease-in-out
-                    ${
-                      startAnimation
-                        ? "opacity-100 translate-y-0"
-                        : "opacity-0 translate-y-4"
-                    }`}
-                      style={{ transitionDelay: `${n * 80}ms` }}
-                    ></div>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <>
-                {messages.map((message, messageIndex) => {
-                  const isLastMessage = messageIndex === messages.length - 1;
-                  const showLoaderForThisMessage = showLoader && isLastMessage;
+            {messages.map((message, messageIndex) => {
+              const isLastMessage = messageIndex === messages.length - 1;
+              const showLoaderForThisMessage = showLoader && isLastMessage;
+              const toolCalls = getToolCalls(message as Message);
+              const sources = getSources(message as Message);
 
-                  return (
-                    <div
-                      ref={isLastMessage ? lastMessageRef : null} // <-- attach here
-                      key={message.id}
-                      className="space-y-2 animate-in fade-in slide-in-from-bottom-3 duration-300"
-                    >
-                      {/* Role badge */}
-                      <div className="text-[10px] font-medium tracking-widest uppercase">
-                        {message.role === "assistant" && (
-                          <div className="font-medium text-black bg-white border w-[82px] px-2 py-1 rounded-full">
-                            Assistant
-                          </div>
-                        )}
-                        {message.role === "user" && (
-                          <div className="font-medium text-white bg-black px-2 py-1 w-[40px] rounded-full">
-                            You
-                          </div>
-                        )}
+              return (
+                <div
+                  ref={isLastMessage ? lastMessageRef : null}
+                  key={message.id}
+                  className="space-y-4 animate-in fade-in slide-in-from-bottom-3 duration-300"
+                >
+                  {/* Role badge */}
+                  <div className="text-[10px] font-medium tracking-widest uppercase">
+                    {message.role === "assistant" && (
+                      <div className="font-medium text-black bg-white border w-[82px] px-2 py-1 rounded-full">
+                        Assistant
                       </div>
+                    )}
+                    {message.role === "user" && (
+                      <div className="font-medium text-white dark:text-white bg-black dark:bg-gray-700 px-2 py-1 w-[40px] rounded-full">
+                        You
+                      </div>
+                    )}
+                  </div>
 
-                      {/* Loader */}
-                      {showLoaderForThisMessage && (
-                        <div className="flex items-center gap-2 text-sm">
-                          <TextShimmer duration={1} spread={2}>
-                            Generating...
-                          </TextShimmer>
-                        </div>
-                      )}
+                  {/* Loader */}
+                  {showLoaderForThisMessage && (
+                    <div className="flex items-center gap-3 text-sm ">
+                      <Loader2 className="animate-spin" size={16} />
+                      <TextShimmer duration={1} spread={2}>
+                        Thinking...
+                      </TextShimmer>
+                    </div>
+                  )}
 
-                      {/* Message parts */}
-                      <div className="prose prose-sm max-w-none dark:prose-invert">
-                        {message.parts.map((part, i) => {
-                          switch (part.type) {
-                            case "text":
-                              return (
-                                <div key={`${message.id}-${i}`}>
-                                  <Response>{part.text}</Response>
+                  {/* Tool Calls */}
+                  {toolCalls.length > 0 &&
+                    toolCalls.map((tool, i) => {
+                      const isSearch = tool.type === "tool-searchTool";
+                      const isDeepResearch =
+                        tool.type === "tool-deepResearchTool";
+                      return (
+                        <Accordion
+                          key={`${message.id}-tool-${i}`}
+                          type="single"
+                          collapsible
+                          className="border rounded-lg overflow-hidden bg-blue-50/50 dark:bg-blue-950/20"
+                        >
+                          <AccordionItem
+                            value={`item-${i}`}
+                            className="border-0"
+                          >
+                            <AccordionTrigger className="px-4 py-3 hover:no-underline">
+                              <div className="flex items-center gap-3">
+                                {isDeepResearch ? (
+                                  <FileText
+                                    className="text-blue-600"
+                                    size={18}
+                                  />
+                                ) : (
+                                  <Search className="text-blue-600" size={18} />
+                                )}
+                                <div className="text-left">
+                                  <div className="font-medium text-sm">
+                                    {isDeepResearch
+                                      ? "Deep Research"
+                                      : "Web Search"}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {isDeepResearch
+                                      ? `${
+                                          tool.result?.queriesExecuted
+                                            ?.length ?? 0
+                                        } queries, ${
+                                          tool.result?.totalSourcesFound ?? 0
+                                        } sources`
+                                      : `Query: ${
+                                          (
+                                            tool.args?.searchQuery as string
+                                          )?.slice(0, 60) ?? ""
+                                        }...`}
+                                  </div>
                                 </div>
-                              );
+                              </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="px-4 pb-4">
+                              {/* Deep Research Details */}
+                              {isDeepResearch &&
+                                tool.result?.queriesExecuted && (
+                                  <div className="space-y-3">
+                                    <div>
+                                      <h4 className="text-sm font-semibold mb-2">
+                                        Queries Executed:
+                                      </h4>
+                                      <div className="flex flex-wrap gap-2">
+                                        {tool.result.queriesExecuted.map(
+                                          (q, idx) => (
+                                            <Badge
+                                              key={idx}
+                                              variant="secondary"
+                                              className="text-xs"
+                                            >
+                                              {q}
+                                            </Badge>
+                                          )
+                                        )}
+                                      </div>
+                                    </div>
+                                    {tool.result.quickAnswers &&
+                                      tool.result.quickAnswers.length > 0 && (
+                                        <div>
+                                          <h4 className="text-sm font-semibold mb-2">
+                                            Quick Insights:
+                                          </h4>
+                                          <div className="space-y-2">
+                                            {tool.result.quickAnswers.map(
+                                              (qa, idx) => (
+                                                <div
+                                                  key={idx}
+                                                  className="text-xs bg-white dark:bg-gray-800 p-3 rounded border"
+                                                >
+                                                  <div className="font-medium text-blue-600 mb-1">
+                                                    {qa.query}
+                                                  </div>
+                                                  <div className="text-gray-700 dark:text-gray-300">
+                                                    {qa.answer}
+                                                  </div>
+                                                </div>
+                                              )
+                                            )}
+                                          </div>
+                                        </div>
+                                      )}
+                                  </div>
+                                )}
 
-                            case "tool-weather":
-                            case "tool-searchTool":
-                              return (
-                                <Accordion
-                                  key={`${message.id}-${i}`}
-                                  type="single"
-                                  collapsible
-                                  className="my-3"
-                                >
-                                  <AccordionItem value={`item-${i}`}>
-                                    <AccordionTrigger>
-                                      {part.type === "tool-weather"
-                                        ? "Weather Tool Call"
-                                        : "Search Tool Call"}
-                                    </AccordionTrigger>
-                                    <AccordionContent className="border p-4 rounded-2xl">
-                                      <pre className="text-xs whitespace-pre-wrap">
-                                        {JSON.stringify(part, null, 2)}
-                                      </pre>
-                                    </AccordionContent>
-                                  </AccordionItem>
-                                </Accordion>
-                              );
+                              {/* Regular Search Details */}
+                              {isSearch && tool.result?.answer && (
+                                <div className="text-sm bg-white dark:bg-gray-800 p-3 rounded border mb-3">
+                                  <div className="font-medium mb-1">
+                                    Quick Answer:
+                                  </div>
+                                  <div className="text-gray-700 dark:text-gray-300">
+                                    {tool.result.answer}
+                                  </div>
+                                </div>
+                              )}
 
-                            default:
-                              return null;
-                          }
-                        })}
+                              <details className="mt-3">
+                                <summary className="text-xs text-gray-500 cursor-pointer hover:text-gray-700">
+                                  View Raw Response
+                                </summary>
+                                <pre className="text-xs whitespace-pre-wrap mt-2 p-3 bg-gray-100 dark:bg-gray-900 rounded overflow-auto max-h-64">
+                                  {JSON.stringify(tool, null, 2)}
+                                </pre>
+                              </details>
+                            </AccordionContent>
+                          </AccordionItem>
+                        </Accordion>
+                      );
+                    })}
+
+                  {/* Sources */}
+                  {sources.length > 0 && (
+                    <div className="border rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
+                      <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                        <FileText size={16} />
+                        Sources ({sources.length})
+                      </h4>
+                      <div className="space-y-2 max-h-64 overflow-auto">
+                        {sources.slice(0, 10).map((source, idx) => (
+                          <a
+                            key={idx}
+                            href={source.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block text-xs p-3 bg-white dark:bg-gray-800 rounded border hover:border-blue-400 hover:shadow-sm transition-all"
+                          >
+                            <div className="font-medium text-blue-600 hover:underline mb-1">
+                              [{idx + 1}] {source.title}
+                            </div>
+                            <div className="text-gray-500 text-[10px] truncate">
+                              {source.url}
+                            </div>
+                            {source.publishedDate && (
+                              <div className="text-gray-400 text-[10px] mt-1">
+                                {new Date(
+                                  source.publishedDate
+                                ).toLocaleDateString()}
+                              </div>
+                            )}
+                          </a>
+                        ))}
+                        {sources.length > 10 && (
+                          <div className="text-xs text-gray-500 text-center py-2">
+                            + {sources.length - 10} more sources
+                          </div>
+                        )}
                       </div>
                     </div>
-                  );
-                })}
-              </>
-            )}
+                  )}
 
-            {/* Action Buttons for last message */}
+                  {/* Message text */}
+                  <div className="prose prose-sm max-w-none dark:prose-invert">
+                    {message.parts.map((part, i) =>
+                      part.type === "text" ? (
+                        <div key={`${message.id}-${i}`}>
+                          <Response>{part.text}</Response>
+                        </div>
+                      ) : null
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Copy + Feedback */}
             {messages.length > 0 && status === "ready" && (
               <div className="flex h-16 items-center justify-end gap-2">
                 <Button
@@ -201,19 +382,16 @@ export default function MainChat() {
                   disabled={!latestMessageText.trim()}
                   onClick={handleCopyResponse}
                 >
-                  {/* Copy Icon */}
                   <Copy
-                    className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-400 ease-in-out ${
+                    className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 transition-all duration-250 ease-in-out ${
                       copied
                         ? "opacity-0 scale-90 pointer-events-none"
                         : "opacity-100 scale-100"
                     }`}
                     size={18}
                   />
-
-                  {/* Check Icon */}
                   <Check
-                    className={`absolute top-1/2 left-1/2 -translate-x-1/2 ease-in-out -translate-y-1/2 transition-all duration-400 delay-200 ${
+                    className={`absolute top-1/2 left-1/2 -translate-x-1/2 ease-in-out -translate-y-1/2 transition-all duration-250 delay-150 ${
                       copied
                         ? "opacity-100 scale-100"
                         : "opacity-0 scale-90 pointer-events-none"
@@ -221,7 +399,6 @@ export default function MainChat() {
                     size={18}
                   />
                 </Button>
-
                 <Button variant="ghost" className="p-0 m-0">
                   <ThumbsUp size={10} />
                 </Button>
@@ -234,16 +411,9 @@ export default function MainChat() {
         </div>
       </div>
 
-      {/* Scroll Button
-      {showScrollButton && (
-        <div className="absolute bottom-24 right-4 transition z-20">
-          <ScrollButton onClick={scrollToBottom} />
-        </div>
-      )} */}
-
-      {/* Input Container - Fixed at bottom */}
-      <div className="sticky bottom-0  dark:bg-gray-950 py-4">
-        <div className="max-w-4xl mx-auto">
+      {/* Input */}
+      <div className="sticky bottom-0 dark:bg-black py-4 border-t bg-white/80 backdrop-blur-xs">
+        <div className="max-w-4xl mx-auto flex flex-col gap-4">
           <MainInput
             input={input}
             handleInputChange={handleInputChange}
